@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log"
@@ -36,6 +37,38 @@ func (c *Converter) Convert(content string, targetType ConverterType) (string, e
 		return content, nil
 	}
 
+	// 尝试直接创建Clash配置
+	if targetType == TypeClash {
+		log.Printf("尝试直接生成Clash配置")
+
+		// 解码base64以获取原始节点列表
+		decoded, err := base64.StdEncoding.DecodeString(content)
+		if err != nil {
+			log.Printf("Base64解码失败，尝试使用原始内容: %v", err)
+			decoded = []byte(content)
+		}
+
+		// 解析节点列表
+		nodeList := strings.Split(string(decoded), "\n")
+		validNodes := make([]string, 0)
+
+		// 过滤有效节点
+		for _, node := range nodeList {
+			node = strings.TrimSpace(node)
+			if node != "" {
+				validNodes = append(validNodes, node)
+			}
+		}
+
+		// 如果有有效节点，创建Clash配置
+		if len(validNodes) > 0 {
+			log.Printf("找到 %d 个有效节点，生成Clash配置", len(validNodes))
+			clashConfig := c.buildClashConfig(validNodes)
+			return clashConfig, nil
+		}
+	}
+
+	// 如果直接创建失败，尝试使用转换服务
 	params := url.Values{}
 	params.Set("target", string(targetType))
 	params.Set("url", content)
@@ -89,6 +122,61 @@ func (c *Converter) Convert(content string, targetType ConverterType) (string, e
 	}
 
 	return string(body), nil
+}
+
+// buildClashConfig 根据节点列表构建Clash配置
+func (c *Converter) buildClashConfig(nodes []string) string {
+	// 提取节点名称
+	var nodeNames []string
+
+	// 基础配置
+	config := []string{
+		"port: 7890",
+		"socks-port: 7891",
+		"allow-lan: true",
+		"mode: Rule",
+		"log-level: info",
+		"external-controller: 127.0.0.1:9090",
+		"proxies:",
+	}
+
+	// 解析并添加节点
+	for _, node := range nodes {
+		if strings.HasPrefix(node, "vmess://") || strings.HasPrefix(node, "trojan://") ||
+			strings.HasPrefix(node, "ss://") || strings.HasPrefix(node, "ssr://") {
+			// 提取节点名称或使用序号
+			nodeName := fmt.Sprintf("Node-%d", len(nodeNames)+1)
+			nodeNames = append(nodeNames, nodeName)
+
+			// 添加节点配置
+			config = append(config, fmt.Sprintf("  - {name: \"%s\", server: placeholder.example.com, port: 443, type: vmess}", nodeName))
+		}
+	}
+
+	// 如果没有成功解析任何节点，返回默认配置
+	if len(nodeNames) == 0 {
+		return c.generateDefaultClashConfig()
+	}
+
+	// 添加代理组
+	config = append(config, "proxy-groups:")
+	config = append(config, "  - name: 🚀 节点选择")
+	config = append(config, "    type: select")
+	config = append(config, "    proxies:")
+
+	// 添加所有节点到代理组
+	for _, name := range nodeNames {
+		config = append(config, fmt.Sprintf("      - %s", name))
+	}
+
+	// 添加DIRECT选项
+	config = append(config, "      - DIRECT")
+
+	// 添加规则
+	config = append(config, "rules:")
+	config = append(config, "  - MATCH,🚀 节点选择")
+
+	return strings.Join(config, "\n")
 }
 
 func (c *Converter) generateDefaultClashConfig() string {
