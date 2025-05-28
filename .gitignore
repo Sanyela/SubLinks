@@ -19,5 +19,4 @@ Thumbs.db
 *.test
 *.out
 /vendor/
-go.mod
 go.sum 
