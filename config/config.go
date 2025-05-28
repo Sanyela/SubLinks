@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 )
@@ -142,12 +141,6 @@ func RemoveSubscribeURL(url string) error {
 
 // WatchSubscribeFile 监视订阅文件变化
 func WatchSubscribeFile() error {
-	// 获取文件的绝对路径
-	absPath, err := filepath.Abs(GlobalConfig.SubscribeFile)
-	if err != nil {
-		return err
-	}
-
 	// 启动文件监视
 	go func() {
 		for {
