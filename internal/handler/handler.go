@@ -169,7 +169,7 @@ func (h *Handler) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 		h.notifier.SendMessage("#获取订阅", clientIP, additionalData)
 	}
 
-	// 返回结果
+	// 返回结果d
 	w.Write([]byte(convertedContent))
 	log.Printf("成功返回订阅内容给客户端")
 }
