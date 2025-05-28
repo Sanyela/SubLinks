@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/base64"
+	"log"
 	"net/http"
 	"strings"
 
@@ -100,50 +101,77 @@ func (h *Handler) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 打印客户端信息
+	log.Printf("客户端请求订阅，UserAgent: %s", r.UserAgent())
+
 	// 合并节点
 	mergedContent, err := h.merger.MergeNodes()
 	if err != nil {
+		log.Printf("节点合并失败: %v", err)
 		http.Error(w, "节点合并失败", http.StatusInternalServerError)
 		return
 	}
 
+	if len(mergedContent) == 0 {
+		log.Printf("警告: 合并后的节点内容为空")
+	} else {
+		log.Printf("合并后的节点内容大小: %d字节", len(mergedContent))
+	}
+
 	// 检测客户端类型
 	clientType := h.converter.DetectClientType(r.UserAgent())
+	log.Printf("检测到客户端类型: %s", clientType)
 
 	// 浏览器直接访问时，应该解码base64
 	if strings.Contains(strings.ToLower(r.UserAgent()), "mozilla") &&
 		!strings.Contains(strings.ToLower(r.UserAgent()), "clash") &&
 		!strings.Contains(strings.ToLower(r.UserAgent()), "v2ray") &&
 		!strings.Contains(strings.ToLower(r.UserAgent()), "sing") {
+		log.Printf("检测到浏览器访问，尝试解码base64内容")
 		// 如果是浏览器直接访问，解码base64
 		decoded, err := base64.StdEncoding.DecodeString(mergedContent)
 		if err == nil {
 			mergedContent = string(decoded)
+			log.Printf("成功解码base64内容")
+		} else {
+			log.Printf("base64解码失败: %v", err)
 		}
 	}
 
 	// 转换格式
 	convertedContent, err := h.converter.Convert(mergedContent, clientType)
 	if err != nil {
+		log.Printf("订阅转换失败: %v", err)
 		http.Error(w, "订阅转换失败", http.StatusInternalServerError)
 		return
+	}
+
+	if len(convertedContent) < 10 {
+		log.Printf("警告: 转换后的内容可能无效，长度太短: %d字节", len(convertedContent))
+	} else {
+		log.Printf("转换后的内容大小: %d字节", len(convertedContent))
 	}
 
 	// 设置响应头
 	headers := h.converter.GetResponseHeaders(h.config.FileName)
 	for key, value := range headers {
 		w.Header().Set(key, value)
+		log.Printf("设置响应头: %s=%s", key, value)
 	}
 
 	// 发送通知
 	if h.notifier.ShouldNotify(true) {
 		clientIP := r.Header.Get("CF-Connecting-IP")
+		if clientIP == "" {
+			clientIP = r.RemoteAddr
+		}
 		additionalData := "UA: " + r.UserAgent()
 		h.notifier.SendMessage("#获取订阅", clientIP, additionalData)
 	}
 
 	// 返回结果
 	w.Write([]byte(convertedContent))
+	log.Printf("成功返回订阅内容给客户端")
 }
 
 func (h *Handler) handleUnauthorized(w http.ResponseWriter, r *http.Request) {

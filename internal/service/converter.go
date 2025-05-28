@@ -57,6 +57,9 @@ func (c *Converter) Convert(content string, targetType ConverterType) (string, e
 	resp, err := http.Get(convertURL)
 	if err != nil {
 		log.Printf("转换请求失败: %v", err)
+		if targetType == TypeClash {
+			return c.generateDefaultClashConfig(), nil
+		}
 		return "", fmt.Errorf("转换请求失败: %w", err)
 	}
 	defer resp.Body.Close()
@@ -65,8 +68,8 @@ func (c *Converter) Convert(content string, targetType ConverterType) (string, e
 		body, _ := io.ReadAll(resp.Body)
 		log.Printf("转换服务返回错误状态码: %d, 响应: %s", resp.StatusCode, string(body))
 		if targetType == TypeClash {
-			log.Printf("Clash转换失败，返回原始内容")
-			return content, nil
+			log.Printf("Clash转换失败，返回默认配置")
+			return c.generateDefaultClashConfig(), nil
 		}
 		return "", fmt.Errorf("转换服务返回错误状态码: %d", resp.StatusCode)
 	}
@@ -74,10 +77,45 @@ func (c *Converter) Convert(content string, targetType ConverterType) (string, e
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("读取转换结果失败: %v", err)
+		if targetType == TypeClash {
+			return c.generateDefaultClashConfig(), nil
+		}
 		return "", fmt.Errorf("读取转换结果失败: %w", err)
 	}
 
+	if len(body) < 10 && targetType == TypeClash {
+		log.Printf("转换结果内容过短，可能无效，返回默认配置")
+		return c.generateDefaultClashConfig(), nil
+	}
+
 	return string(body), nil
+}
+
+func (c *Converter) generateDefaultClashConfig() string {
+	return `
+port: 7890
+socks-port: 7891
+allow-lan: true
+mode: Rule
+log-level: info
+external-controller: 127.0.0.1:9090
+proxies:
+  - name: 默认节点
+    type: http
+    server: example.com
+    port: 443
+    username: username
+    password: password
+    tls: true
+proxy-groups:
+  - name: 🚀 节点选择
+    type: select
+    proxies:
+      - 默认节点
+      - DIRECT
+rules:
+  - MATCH,🚀 节点选择
+`
 }
 
 func (c *Converter) DetectClientType(userAgent string) ConverterType {
