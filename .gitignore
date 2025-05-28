@@ -1,0 +1,21 @@
+# 编译输出
+/build/
+*.exe
+sublinks
+
+# 配置文件
+config.yaml
+subscribe.json
+
+# IDE文件
+.idea/
+.vscode/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# Go相关
+*.test
+*.out
+/vendor/ 

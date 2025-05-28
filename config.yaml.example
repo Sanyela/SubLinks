@@ -1,0 +1,18 @@
+# 基本配置
+my_token: "your_token_here"        # 访问令牌，用于验证请求
+file_name: "Pages-SUB-Convert"     # 生成的配置文件名称
+sub_update_time: 6                 # 订阅更新时间（小时）
+
+# Telegram通知配置（可选）
+tg_bot_token: ""                   # Telegram Bot Token
+tg_chat_id: ""                     # Telegram Chat ID
+tg_notify_level: 1                 # 通知级别：1=所有请求，0=仅异常访问
+
+# 订阅转换配置
+subconverter: "apiurl.v1.mk"       # 订阅转换后端地址
+sub_config: "https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_MultiCountry.ini"  # 订阅转换配置文件
+
+# 节点数据
+main_data: ""                      # 自定义节点数据
+subscribe_urls: []                 # 静态订阅链接列表
+ 
