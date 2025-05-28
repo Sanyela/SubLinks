@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -141,16 +142,143 @@ func (c *Converter) buildClashConfig(nodes []string) string {
 	}
 
 	// 解析并添加节点
-	for _, node := range nodes {
-		if strings.HasPrefix(node, "vmess://") || strings.HasPrefix(node, "trojan://") ||
-			strings.HasPrefix(node, "ss://") || strings.HasPrefix(node, "ssr://") {
-			// 提取节点名称或使用序号
-			nodeName := fmt.Sprintf("Node-%d", len(nodeNames)+1)
-			nodeNames = append(nodeNames, nodeName)
+	for i, node := range nodes {
+		nodeConfig := ""
+		nodeName := fmt.Sprintf("Node-%d", i+1)
 
-			// 添加节点配置
-			config = append(config, fmt.Sprintf("  - {name: \"%s\", server: placeholder.example.com, port: 443, type: vmess}", nodeName))
+		if strings.HasPrefix(node, "vmess://") {
+			// 处理VMess节点
+			vmessURL := strings.TrimPrefix(node, "vmess://")
+			decodedBytes, err := base64.StdEncoding.DecodeString(vmessURL)
+			if err == nil {
+				var vmessInfo map[string]interface{}
+				if err := json.Unmarshal(decodedBytes, &vmessInfo); err == nil {
+					// 提取节点信息
+					if name, ok := vmessInfo["ps"].(string); ok && name != "" {
+						nodeName = name
+					}
+
+					// 构建VMess节点配置
+					server, _ := vmessInfo["add"].(string)
+					port, _ := vmessInfo["port"].(float64)
+					id, _ := vmessInfo["id"].(string)
+					aid, _ := vmessInfo["aid"].(float64)
+					network, _ := vmessInfo["net"].(string)
+					tls, _ := vmessInfo["tls"].(string)
+
+					nodeConfig = fmt.Sprintf(`  - name: "%s"
+    type: vmess
+    server: %s
+    port: %d
+    uuid: %s
+    alterId: %d
+    cipher: auto
+    network: %s
+    tls: %t`,
+						nodeName,
+						server,
+						int(port),
+						id,
+						int(aid),
+						network,
+						tls == "tls")
+
+					config = append(config, nodeConfig)
+					nodeNames = append(nodeNames, nodeName)
+					continue
+				}
+			}
+		} else if strings.HasPrefix(node, "ss://") {
+			// 处理Shadowsocks节点
+			ssURL := strings.TrimPrefix(node, "ss://")
+			parts := strings.Split(ssURL, "@")
+			if len(parts) >= 2 {
+				methodAndPassword, err := base64.StdEncoding.DecodeString(parts[0])
+				if err == nil {
+					methodAndPasswordParts := strings.Split(string(methodAndPassword), ":")
+					if len(methodAndPasswordParts) >= 2 {
+						method := methodAndPasswordParts[0]
+						password := methodAndPasswordParts[1]
+
+						serverAndPort := parts[1]
+						if hashIndex := strings.Index(serverAndPort, "#"); hashIndex > 0 {
+							// 如果有名称标识，提取名称
+							nodeName = serverAndPort[hashIndex+1:]
+							serverAndPort = serverAndPort[:hashIndex]
+						}
+
+						serverParts := strings.Split(serverAndPort, ":")
+						if len(serverParts) >= 2 {
+							server := serverParts[0]
+							port := serverParts[1]
+
+							nodeConfig = fmt.Sprintf(`  - name: "%s"
+    type: ss
+    server: %s
+    port: %s
+    cipher: %s
+    password: %s`,
+								nodeName,
+								server,
+								port,
+								method,
+								password)
+
+							config = append(config, nodeConfig)
+							nodeNames = append(nodeNames, nodeName)
+							continue
+						}
+					}
+				}
+			}
+		} else if strings.HasPrefix(node, "trojan://") {
+			// 处理Trojan节点
+			trojanURL := strings.TrimPrefix(node, "trojan://")
+			// 解析trojan URL
+			uri, err := url.Parse("trojan://" + trojanURL)
+			if err == nil {
+				password := uri.User.String()
+				host := uri.Host
+
+				// 提取端口
+				hostParts := strings.Split(host, ":")
+				server := hostParts[0]
+				port := "443"
+				if len(hostParts) > 1 {
+					port = hostParts[1]
+				}
+
+				// 提取节点名称
+				if uri.Fragment != "" {
+					nodeName = uri.Fragment
+				}
+
+				nodeConfig = fmt.Sprintf(`  - name: "%s"
+    type: trojan
+    server: %s
+    port: %s
+    password: %s
+    sni: %s`,
+					nodeName,
+					server,
+					port,
+					password,
+					server)
+
+				config = append(config, nodeConfig)
+				nodeNames = append(nodeNames, nodeName)
+				continue
+			}
 		}
+
+		// 如果无法解析，使用通用配置
+		nodeConfig = fmt.Sprintf(`  - name: "%s"
+    type: http
+    server: example.com
+    port: 443`, nodeName)
+
+		config = append(config, nodeConfig)
+		nodeNames = append(nodeNames, nodeName)
 	}
 
 	// 如果没有成功解析任何节点，返回默认配置
