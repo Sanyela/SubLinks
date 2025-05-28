@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/base64"
 	"net/http"
 	"strings"
 
@@ -108,6 +109,18 @@ func (h *Handler) HandleSubscribe(w http.ResponseWriter, r *http.Request) {
 
 	// 检测客户端类型
 	clientType := h.converter.DetectClientType(r.UserAgent())
+
+	// 浏览器直接访问时，应该解码base64
+	if strings.Contains(strings.ToLower(r.UserAgent()), "mozilla") &&
+		!strings.Contains(strings.ToLower(r.UserAgent()), "clash") &&
+		!strings.Contains(strings.ToLower(r.UserAgent()), "v2ray") &&
+		!strings.Contains(strings.ToLower(r.UserAgent()), "sing") {
+		// 如果是浏览器直接访问，解码base64
+		decoded, err := base64.StdEncoding.DecodeString(mergedContent)
+		if err == nil {
+			mergedContent = string(decoded)
+		}
+	}
 
 	// 转换格式
 	convertedContent, err := h.converter.Convert(mergedContent, clientType)

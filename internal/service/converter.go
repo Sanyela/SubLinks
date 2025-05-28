@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -50,18 +51,29 @@ func (c *Converter) Convert(content string, targetType ConverterType) (string, e
 
 	convertURL := fmt.Sprintf("https://%s/sub?%s", c.backend, params.Encode())
 
+	log.Printf("转换请求URL: %s", convertURL)
+	log.Printf("转换目标类型: %s", targetType)
+
 	resp, err := http.Get(convertURL)
 	if err != nil {
+		log.Printf("转换请求失败: %v", err)
 		return "", fmt.Errorf("转换请求失败: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		log.Printf("转换服务返回错误状态码: %d, 响应: %s", resp.StatusCode, string(body))
+		if targetType == TypeClash {
+			log.Printf("Clash转换失败，返回原始内容")
+			return content, nil
+		}
 		return "", fmt.Errorf("转换服务返回错误状态码: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		log.Printf("读取转换结果失败: %v", err)
 		return "", fmt.Errorf("读取转换结果失败: %w", err)
 	}
 
