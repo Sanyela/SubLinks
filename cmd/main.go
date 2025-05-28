@@ -43,8 +43,8 @@ func main() {
 		api.GET("/subscribe", h.ListSubscribe)      // 列出所有订阅
 	}
 
-	// 主路由处理订阅请求
-	r.GET("/*path", func(c *gin.Context) {
+	// 订阅获取路由
+	r.GET("/sub", func(c *gin.Context) {
 		h.HandleSubscribe(c.Writer, c.Request)
 	})
 
