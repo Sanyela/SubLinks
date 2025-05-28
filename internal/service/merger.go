@@ -3,6 +3,9 @@ package service
 import (
 	"bufio"
 	"encoding/base64"
+	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"sync"
 
@@ -110,6 +113,21 @@ func (m *NodeMerger) removeDuplicates(nodes []string) []string {
 
 // fetchSubscription 获取订阅内容
 func fetchSubscription(url string) (string, error) {
-	// TODO: 实现HTTP请求获取订阅内容
-	return "", nil
+	// 发送HTTP请求获取订阅内容
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("获取订阅内容失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("订阅源返回错误状态码: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("读取订阅内容失败: %w", err)
+	}
+
+	return string(body), nil
 }

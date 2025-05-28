@@ -18,4 +18,6 @@ Thumbs.db
 # Go相关
 *.test
 *.out
-/vendor/ 
+/vendor/
+go.mod
+go.sum 
